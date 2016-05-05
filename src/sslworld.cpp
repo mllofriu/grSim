@@ -585,13 +585,29 @@ dReal normalizeAngle(dReal a)
     if (a<-180) return 360+a;
     return a;
 }
+
+#define DETECTION_MARGIN .5f
+bool inCameraFieldOfView(dReal x, dReal y, int camNum){
+  switch (camNum){
+  case 0:
+    return x > -DETECTION_MARGIN && y > -DETECTION_MARGIN;
+  case 1:
+    return x > -DETECTION_MARGIN && y < DETECTION_MARGIN;
+  case 2:
+    return x < DETECTION_MARGIN && y < DETECTION_MARGIN;
+  case 3:
+    return x < DETECTION_MARGIN && y > -DETECTION_MARGIN;
+  default:
+    return false;
+  }
+}
 #define CONVUNIT(x) ((int)(1000*(x)))
-SSL_WrapperPacket* SSLWorld::generatePacket()
+SSL_WrapperPacket* SSLWorld::generatePacket(int camNum)
 {
     SSL_WrapperPacket* packet = new SSL_WrapperPacket;
     dReal x,y,z,dir;
     ball->getBodyPosition(x,y,z);    
-    packet->mutable_detection()->set_camera_id(0);
+    packet->mutable_detection()->set_camera_id(camNum);
     packet->mutable_detection()->set_frame_number(framenum);    
     dReal t_elapsed = timer->elapsed()/1000.0;
     packet->mutable_detection()->set_t_capture(t_elapsed);
@@ -620,49 +636,65 @@ SSL_WrapperPacket* SSLWorld::generatePacket()
         field->set_penalty_spot_from_field_line_dist(CONVUNIT(cfg->Field_Penalty_Point()));
     }
     if (cfg->noise()==false) {dev_x = 0;dev_y = 0;dev_a = 0;}
-    if ((cfg->vanishing()==false) || (rand0_1() > cfg->ball_vanishing()))
-    {
-        SSL_DetectionBall* vball = packet->mutable_detection()->add_balls();
-        vball->set_x(randn_notrig(x*1000.0f,dev_x));
-        vball->set_y(randn_notrig(y*1000.0f,dev_y));
-        vball->set_z(z*1000.0f);
-        vball->set_pixel_x(x*1000.0f);
-        vball->set_pixel_y(y*1000.0f);
-        vball->set_confidence(0.9 + rand0_1()*0.1);
+
+    // only send ball if within camera field of view
+    if ( inCameraFieldOfView(x, y, camNum) ){
+      if ((cfg->vanishing()==false) || (rand0_1() > cfg->ball_vanishing()))
+      {
+          SSL_DetectionBall* vball = packet->mutable_detection()->add_balls();
+          vball->set_x(randn_notrig(x*1000.0f,dev_x));
+          vball->set_y(randn_notrig(y*1000.0f,dev_y));
+          vball->set_z(z*1000.0f);
+          vball->set_pixel_x(x*1000.0f);
+          vball->set_pixel_y(y*1000.0f);
+          vball->set_confidence(0.9 + rand0_1()*0.1);
+      }
     }
+
+    
     for(int i = 0; i < ROBOT_COUNT; i++){
+        
         if ((cfg->vanishing()==false) || (rand0_1() > cfg->blue_team_vanishing()))
         {
             if (!robots[i]->on) continue;
-            SSL_DetectionRobot* rob = packet->mutable_detection()->add_robots_blue();
             robots[i]->getXY(x,y);
-            dir = robots[i]->getDir();
-            rob->set_robot_id(i);
-            rob->set_pixel_x(x*1000.0f);
-            rob->set_pixel_y(y*1000.0f);
-            rob->set_confidence(1);
-            rob->set_x(randn_notrig(x*1000.0f,dev_x));
-            rob->set_y(randn_notrig(y*1000.0f,dev_y));
-            rob->set_orientation(normalizeAngle(randn_notrig(dir,dev_a))*M_PI/180.0f);
+            // only send robot if within camera field of view
+            if ( inCameraFieldOfView(x, y, camNum)){
+              SSL_DetectionRobot* rob = packet->mutable_detection()->add_robots_blue();
+              
+              dir = robots[i]->getDir();
+              rob->set_robot_id(i);
+              rob->set_pixel_x(x*1000.0f);
+              rob->set_pixel_y(y*1000.0f);
+              rob->set_confidence(1);
+              rob->set_x(randn_notrig(x*1000.0f,dev_x));
+              rob->set_y(randn_notrig(y*1000.0f,dev_y));
+              rob->set_orientation(normalizeAngle(randn_notrig(dir,dev_a))*M_PI/180.0f);
+            }
         }
     }
     for(int i = ROBOT_COUNT; i < ROBOT_COUNT*2; i++){
         if ((cfg->vanishing()==false) || (rand0_1() > cfg->yellow_team_vanishing()))
         {
             if (!robots[i]->on) continue;
-            SSL_DetectionRobot* rob = packet->mutable_detection()->add_robots_yellow();
             robots[i]->getXY(x,y);
-            dir = robots[i]->getDir();
-            rob->set_robot_id(i-ROBOT_COUNT);
-            rob->set_pixel_x(x*1000.0f);
-            rob->set_pixel_y(y*1000.0f);
-            rob->set_confidence(1);
-            rob->set_x(randn_notrig(x*1000.0f,dev_x));
-            rob->set_y(randn_notrig(y*1000.0f,dev_y));
-            rob->set_orientation(normalizeAngle(randn_notrig(dir,dev_a))*M_PI/180.0f);
+            // only send robot if within camera field of view
+            if ( inCameraFieldOfView(x, y, camNum) ){
+              SSL_DetectionRobot* rob = packet->mutable_detection()->add_robots_yellow();
+              robots[i]->getXY(x,y);
+              dir = robots[i]->getDir();
+              rob->set_robot_id(i-ROBOT_COUNT);
+              rob->set_pixel_x(x*1000.0f);
+              rob->set_pixel_y(y*1000.0f);
+              rob->set_confidence(1);
+              rob->set_x(randn_notrig(x*1000.0f,dev_x));
+              rob->set_y(randn_notrig(y*1000.0f,dev_y));
+              rob->set_orientation(normalizeAngle(randn_notrig(dir,dev_a))*M_PI/180.0f);
+            }
         }
     }
     return packet;
+
 }
 
 SendingPacket::SendingPacket(SSL_WrapperPacket* _packet,int _t)
@@ -674,7 +706,8 @@ SendingPacket::SendingPacket(SSL_WrapperPacket* _packet,int _t)
 void SSLWorld::sendVisionBuffer()
 {
     int t = timer->elapsed();
-    sendQueue.push_back(new SendingPacket(generatePacket(),t));
+    for (int camNum = 0; camNum < 4; camNum++)
+      sendQueue.push_back(new SendingPacket(generatePacket(camNum),t));
     while (t - sendQueue.front()->t>=cfg->sendDelay())
     {
         SSL_WrapperPacket *packet = sendQueue.front()->packet;

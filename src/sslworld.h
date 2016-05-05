@@ -67,7 +67,7 @@ public:
     virtual ~SSLWorld();
     void glinit();
     void step(dReal dt=-1);
-    SSL_WrapperPacket* generatePacket();
+    SSL_WrapperPacket* generatePacket(int camNum);
     void sendVisionBuffer();
     ConfigWidget* cfg;
     CGraphics* g;
