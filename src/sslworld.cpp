@@ -634,10 +634,6 @@ SSL_WrapperPacket* SSLWorld::generatePacket(int camNum)
         //TODO: verify if these fields are correct:
         field->set_penalty_line_from_spot_dist(CONVUNIT(cfg->Field_Penalty_Line()));
         field->set_penalty_spot_from_field_line_dist(CONVUNIT(cfg->Field_Penalty_Point()));
-
-        /*for (int calibNum = 0; calibNum < 4; calibNum++){
-          geom->add_calib();
-        }*/
     }
     if (cfg->noise()==false) {dev_x = 0;dev_y = 0;dev_a = 0;}
 
